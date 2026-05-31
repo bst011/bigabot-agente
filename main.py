@@ -17,7 +17,15 @@ def home():
 @app.get("/investigar/{nicho}")
 async def investigar_clientes(nicho: str):
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # 1. Le preguntamos a Google qué cerebro tenemos autorizado usar
+        nombre_modelo = 'gemini-1.0-pro' # Respaldo por defecto
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                nombre_modelo = m.name
+                break
+                
+        # 2. Usamos exactamente el modelo que Google nos entregó
+        model = genai.GenerativeModel(nombre_modelo)
         
         prompt = f"""
         Actúa como Director de Crecimiento de la agencia BigaEstudio.
@@ -39,11 +47,11 @@ async def investigar_clientes(nicho: str):
             nombre_archivo = "Reporte_Prospectos.pdf"
             crear_pdf_prospeccion(texto_ia, nombre_archivo)
             
-            # Si funciona, descarga el PDF
+            # Si funciona, descarga el PDF directamente
             return FileResponse(nombre_archivo, media_type='application/pdf', filename=f"Prospeccion_{nicho}.pdf")
             
         except Exception as error_pdf:
-            # Si la imprenta falla por una letra o tilde, mostramos el texto en pantalla
+            # Si la imprenta falla por una letra rara, mostramos el texto en pantalla para no perderlo
             return JSONResponse(content={
                 "alerta": "La IA escribió el reporte, pero el creador de PDF falló.",
                 "error_tecnico": str(error_pdf),
@@ -51,9 +59,10 @@ async def investigar_clientes(nicho: str):
             })
 
     except Exception as error_ia:
-        # Si Gemini falla desde el principio, mostramos por qué
+        # Si Gemini falla, mostramos el error exacto
         return JSONResponse(content={
             "alerta": "Error de conexión con el cerebro de Gemini.",
             "error_tecnico": str(error_ia),
+            "modelo_intentado": nombre_modelo,
             "detalles": traceback.format_exc()
         })
