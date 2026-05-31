@@ -15,7 +15,7 @@ def home():
 
 @app.get("/investigar/{nicho}")
 async def investigar_clientes(nicho: str):
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-pro')
     
     prompt = f"""
     Actúa como Director de Crecimiento de la agencia BigaEstudio.
