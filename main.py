@@ -39,9 +39,8 @@ async def investigar_clientes(nicho: str):
         """
         
         # El agente piensa y genera el contenido
-        respuesta = model.generate_content(prompt)
-        texto_ia = respuesta.text
-        
+   respuesta = model.generate_content(prompt)
+   texto_ia = respuesta.text.replace("*", "").replace("#", "")
         try:
             # Intentamos enviar el texto a la imprenta PDF
             nombre_archivo = "Reporte_Prospectos.pdf"
