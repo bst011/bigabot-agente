@@ -1,7 +1,8 @@
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 import google.generativeai as genai
 import os
+import traceback
 from pdf_generator import crear_pdf_prospeccion
 
 app = FastAPI()
@@ -15,26 +16,44 @@ def home():
 
 @app.get("/investigar/{nicho}")
 async def investigar_clientes(nicho: str):
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    
-    prompt = f"""
-    Actúa como Director de Crecimiento de la agencia BigaEstudio.
-    Investiga el siguiente nicho: {nicho}.
-    Crea 3 perfiles de clientes potenciales ficticios pero altamente realistas.
-    Para cada uno detalla:
-    - Nombre del negocio.
-    - El principal error en su identidad visual o branding actual.
-    - Cómo BigaEstudio resolverá este problema con un manual estructurado.
-    REGLA ESTRICTA: NO uses absolutamente NINGUN emoji, ícono, ni símbolos especiales. Utiliza SOLO texto plano tradicional. Usa formato Markdown limpio. Usa '##' para títulos de cada cliente.
-    """
-    
-    # El agente piensa y genera el contenido
-    respuesta = model.generate_content(prompt)
-    texto_ia = respuesta.text
-    
-    # Enviamos el texto a la imprenta PDF
-    nombre_archivo = "Reporte_Prospectos.pdf"
-    crear_pdf_prospeccion(texto_ia, nombre_archivo)
-    
-    # Devuelve el PDF directamente a tu celular
-    return FileResponse(nombre_archivo, media_type='application/pdf', filename=f"Prospeccion_{nicho}.pdf")
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        prompt = f"""
+        Actúa como Director de Crecimiento de la agencia BigaEstudio.
+        Investiga el siguiente nicho: {nicho}.
+        Crea 3 perfiles de clientes potenciales ficticios pero altamente realistas.
+        Para cada uno detalla:
+        - Nombre del negocio.
+        - El principal error en su identidad visual o branding actual.
+        - Cómo BigaEstudio resolverá este problema con un manual estructurado.
+        REGLA ESTRICTA: NO uses absolutamente NINGUN emoji, ícono, ni símbolos especiales. Utiliza SOLO texto plano tradicional. Usa formato Markdown limpio. Usa '##' para títulos de cada cliente.
+        """
+        
+        # El agente piensa y genera el contenido
+        respuesta = model.generate_content(prompt)
+        texto_ia = respuesta.text
+        
+        try:
+            # Intentamos enviar el texto a la imprenta PDF
+            nombre_archivo = "Reporte_Prospectos.pdf"
+            crear_pdf_prospeccion(texto_ia, nombre_archivo)
+            
+            # Si funciona, descarga el PDF
+            return FileResponse(nombre_archivo, media_type='application/pdf', filename=f"Prospeccion_{nicho}.pdf")
+            
+        except Exception as error_pdf:
+            # Si la imprenta falla por una letra o tilde, mostramos el texto en pantalla
+            return JSONResponse(content={
+                "alerta": "La IA escribió el reporte, pero el creador de PDF falló.",
+                "error_tecnico": str(error_pdf),
+                "reporte_generado": texto_ia
+            })
+
+    except Exception as error_ia:
+        # Si Gemini falla desde el principio, mostramos por qué
+        return JSONResponse(content={
+            "alerta": "Error de conexión con el cerebro de Gemini.",
+            "error_tecnico": str(error_ia),
+            "detalles": traceback.format_exc()
+        })
