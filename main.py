@@ -17,7 +17,7 @@ def home():
 async def investigar_clientes(nicho: str):
     model = genai.GenerativeModel('gemini-1.5-flash')
     
-    prompt = f"""
+        prompt = f"""
     Actúa como Director de Crecimiento de la agencia BigaEstudio.
     Investiga el siguiente nicho: {nicho}.
     Crea 3 perfiles de clientes potenciales ficticios pero altamente realistas.
@@ -25,8 +25,9 @@ async def investigar_clientes(nicho: str):
     - Nombre del negocio.
     - El principal error en su identidad visual o branding actual.
     - Cómo BigaEstudio resolverá este problema con un manual estructurado.
-    Usa formato Markdown limpio, sin asteriscos excesivos. Usa '##' para títulos de cada cliente.
+    REGLA ESTRICTA: NO uses absolutamente NINGUN emoji, ícono, ni símbolos especiales. Utiliza SOLO texto plano tradicional. Usa formato Markdown limpio. Usa '##' para títulos de cada cliente.
     """
+
     
     # El agente piensa y genera el contenido
     respuesta = model.generate_content(prompt)
