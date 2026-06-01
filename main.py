@@ -1,66 +1,61 @@
-from fastapi import FastAPI
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, Request, Response
 import google.generativeai as genai
 import os
 import traceback
-from pdf_generator import crear_pdf_prospeccion
 
 app = FastAPI()
 
-# Conecta con la llave secreta que guardamos de Gemini
+# Conectar el cerebro de la IA
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
 @app.get("/")
 def home():
-    return {"mensaje": "Servidor de BigaEstudio Activo. BigaBot en Modo IA Nativa."}
+    return {"mensaje": "Servidor de BigaEstudio Activo. Escuchando WhatsApp..."}
 
-@app.get("/investigar/{nicho}")
-async def investigar_clientes(nicho: str):
+# --- NUEVO: EL OÍDO DE WHATSAPP ---
+@app.post("/whatsapp")
+async def whatsapp_webhook(request: Request):
     try:
-        # Le preguntamos a Google qué cerebro tenemos autorizado usar
+        # 1. Leemos el mensaje que nos envía Twilio
+        form_data = await request.form()
+        mensaje_usuario = form_data.get('Body', '')
+        remitente = form_data.get('From', '')
+        
+        print(f"Mensaje recibido de {remitente}: {mensaje_usuario}")
+
+        # 2. Despertamos a Gemini
         nombre_modelo = 'gemini-1.0-pro'
         for m in genai.list_models():
             if 'generateContent' in m.supported_generation_methods:
                 nombre_modelo = m.name
                 break
-                
         model = genai.GenerativeModel(nombre_modelo)
         
-        # El Prompt exige negocios reales desde el conocimiento de la IA
+        # 3. Le damos el contexto de chat a la IA
         prompt = f"""
-        Actúa como Director de Crecimiento de la agencia BigaEstudio.
-        Investiga el siguiente nicho: {nicho}.
-        Busca en tu base de datos y selecciona 3 negocios REALES, VERDADEROS y EXISTENTES en esa ubicación o rubro. 
-        Para cada uno detalla:
-        - Nombre real del negocio y su ubicación aproximada.
-        - El principal error o debilidad estratégica en su identidad visual o branding actual.
-        - Cómo BigaEstudio resolverá este problema con un manual estructurado.
-        REGLA ESTRICTA: Los negocios DEBEN existir en la vida real. NO inventes nombres. NO uses formato Markdown. NO uses asteriscos (*). NO uses numerales (#). NO uses guiones largos. Escribe SOLO en texto plano tradicional.
+        Actúa como BigaBot, el asistente de inteligencia artificial de la agencia BigaEstudio.
+        Un cliente te acaba de escribir esto por WhatsApp: "{mensaje_usuario}"
+        
+        Si te pide investigar un nicho o buscar negocios, nombra 3 negocios de ese rubro que existan en Chile, menciona un error visual común que tienen, y cómo BigaEstudio lo solucionaría con un manual de identidad.
+        Si solo te saluda o hace una pregunta general, responde de manera carismática, profesional y breve, presentándote como el asesor de crecimiento de la agencia.
+        REGLA ESTRICTA: Escribe en texto plano. NO uses formato Markdown, ni negritas, ni asteriscos (*), ni guiones largos, para que se lea perfecto en WhatsApp.
         """
         
-        # El agente piensa y genera el contenido
-        respuesta = model.generate_content(prompt)
+        respuesta_ia = model.generate_content(prompt)
+        texto_respuesta = respuesta_ia.text
         
-        # Filtro definitivo para evitar que el PDF colapse con símbolos raros
-        texto_ia = respuesta.text.encode('latin-1', 'ignore').decode('latin-1')
+        # 4. Empaquetamos la respuesta en el formato que exige Twilio (XML/TwiML)
+        xml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
+        <Response>
+            <Message>{texto_respuesta}</Message>
+        </Response>"""
         
-        try:
-            # Intentamos enviar el texto a la imprenta PDF
-            nombre_archivo = "Reporte_Prospectos.pdf"
-            crear_pdf_prospeccion(texto_ia, nombre_archivo)
-            
-            # Si funciona, descarga el PDF directamente
-            return FileResponse(nombre_archivo, media_type='application/pdf', filename=f"Prospeccion_Nativa.pdf")
-            
-        except Exception as error_pdf:
-            return JSONResponse(content={
-                "alerta": "El texto se generó con éxito, pero la imprenta PDF falló.",
-                "reporte_generado": texto_ia
-            })
+        return Response(content=xml_response, media_type="application/xml")
 
-    except Exception as error_ia:
-        return JSONResponse(content={
-            "alerta": "Error de conexión con el cerebro de Gemini.",
-            "error_tecnico": str(error_ia),
-            "detalles": traceback.format_exc()
-        })
+    except Exception as e:
+        print(f"Error técnico: {e}")
+        error_xml = """<?xml version="1.0" encoding="UTF-8"?>
+        <Response>
+            <Message>BigaBot está actualizando sus sistemas. Por favor, intenta de nuevo en unos minutos.</Message>
+        </Response>"""
+        return Response(content=error_xml, media_type="application/xml")
