@@ -2,4 +2,5 @@ fastapi
 uvicorn
 fpdf2
 google-generativeai
+python-multipart
 
