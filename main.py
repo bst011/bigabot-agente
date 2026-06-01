@@ -35,12 +35,13 @@ async def investigar_clientes(nicho: str):
         - Nombre del negocio.
         - El principal error en su identidad visual o branding actual.
         - Cómo BigaEstudio resolverá este problema con un manual estructurado.
-        REGLA ESTRICTA: NO uses absolutamente NINGUN emoji, ícono, ni símbolos especiales. Utiliza SOLO texto plano tradicional. Usa formato Markdown limpio. Usa '##' para títulos de cada cliente.
+        REGLA ESTRICTA: NO uses formato Markdown. NO uses asteriscos (*). NO uses numerales (#). Escribe SOLO en texto plano tradicional como un bloc de notas.
         """
         
-        # El agente piensa y genera el contenido
-   respuesta = model.generate_content(prompt)
-   texto_ia = respuesta.text.replace("*", "").replace("#", "")
+        # El agente piensa y genera el contenido limpiando los asteriscos
+        respuesta = model.generate_content(prompt)
+        texto_ia = respuesta.text.replace("*", "").replace("#", "")
+        
         try:
             # Intentamos enviar el texto a la imprenta PDF
             nombre_archivo = "Reporte_Prospectos.pdf"
