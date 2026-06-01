@@ -35,12 +35,14 @@ async def investigar_clientes(nicho: str):
         - Nombre del negocio.
         - El principal error en su identidad visual o branding actual.
         - Cómo BigaEstudio resolverá este problema con un manual estructurado.
-        REGLA ESTRICTA: NO uses formato Markdown. NO uses asteriscos (*). NO uses numerales (#). Escribe SOLO en texto plano tradicional como un bloc de notas.
+        REGLA ESTRICTA: NO uses formato Markdown. NO uses asteriscos (*). NO uses numerales (#). NO uses guiones largos. Escribe SOLO en texto plano tradicional como un bloc de notas.
         """
         
-        # El agente piensa y genera el contenido limpiando los asteriscos
+        # El agente piensa y genera el contenido
         respuesta = model.generate_content(prompt)
-        texto_ia = respuesta.text.replace("*", "").replace("#", "")
+        
+        # Filtro definitivo: Aplana cualquier símbolo extraño a texto básico para que la imprenta PDF no colapse
+        texto_ia = respuesta.text.encode('latin-1', 'ignore').decode('latin-1')
         
         try:
             # Intentamos enviar el texto a la imprenta PDF
@@ -51,7 +53,7 @@ async def investigar_clientes(nicho: str):
             return FileResponse(nombre_archivo, media_type='application/pdf', filename=f"Prospeccion_{nicho}.pdf")
             
         except Exception as error_pdf:
-            # Si la imprenta falla por una letra rara, mostramos el texto en pantalla para no perderlo
+            # Si la imprenta falla, mostramos el texto en pantalla para no perderlo
             return JSONResponse(content={
                 "alerta": "La IA escribió el reporte, pero el creador de PDF falló.",
                 "error_tecnico": str(error_pdf),
