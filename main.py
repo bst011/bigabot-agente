@@ -2,60 +2,66 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse
 import google.generativeai as genai
 import os
-import traceback
 from pdf_generator import crear_pdf_prospeccion
 
 app = FastAPI()
 
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
+# --- 🧠 EL CEREBRO DE MEMORIA ---
+# Este diccionario guardará el historial de cada número de teléfono
+memoria_usuarios = {}
+
 @app.get("/")
 def home():
-    return {"mensaje": "Servidor de BigaEstudio. Escuchando WhatsApp..."}
+    return {"mensaje": "Servidor de BigaEstudio. Escuchando WhatsApp con memoria..."}
 
-# --- NUEVO: LA VENTANILLA PARA QUE TWILIO RECOJA EL PDF ---
 @app.get("/descargar-pdf")
 def entregar_pdf():
-    # Cuando Twilio pida el archivo, se lo entregamos en formato PDF
     return FileResponse("Reporte_BigaEstudio.pdf", media_type='application/pdf', filename="Prospeccion_BigaEstudio.pdf")
 
-# --- EL OÍDO DE WHATSAPP ---
 @app.post("/whatsapp")
 async def whatsapp_webhook(request: Request):
     try:
         form_data = await request.form()
         mensaje_usuario = form_data.get('Body', '').lower()
-        remitente = form_data.get('From', '')
+        remitente = form_data.get('From', '') # Detectamos el número de celular que escribe
 
-        # Configuramos la IA
+        # Configuramos la IA y le damos su "alma" base
+        instrucciones_base = """
+        Eres BigaBot, estratega principal de la agencia BigaEstudio. Estás chateando por WhatsApp.
+        REGLAS:
+        1. Habla como humano: cercano y profesional.
+        2. Breve y directo: máximo 2 párrafos.
+        3. NO uses asteriscos ni negritas de Markdown. Usa texto plano y un par de emojis.
+        """
+        
+        # Buscamos el modelo correcto
         nombre_modelo = 'gemini-1.0-pro'
         for m in genai.list_models():
             if 'generateContent' in m.supported_generation_methods:
                 nombre_modelo = m.name
                 break
-        model = genai.GenerativeModel(nombre_modelo)
+                
+        model = genai.GenerativeModel(
+            model_name=nombre_modelo,
+            system_instruction=instrucciones_base
+        )
 
-        # MODO 1: EL CLIENTE PIDE UNA INVESTIGACIÓN
+        # MODO 1: EL CLIENTE PIDE UNA INVESTIGACIÓN (Bypass Temporal)
         if "investig" in mensaje_usuario or "reporte" in mensaje_usuario or "pdf" in mensaje_usuario:
             
-            prompt_investigacion = f"""
-            Actúa como Director de Crecimiento de BigaEstudio.
-            El cliente solicitó esta investigación: "{mensaje_usuario}".
-            Busca en tu base de datos 3 negocios REALES en esa ubicación o rubro.
-            Para cada uno detalla: Nombre real, su ubicación aproximada, el principal error en su identidad visual, y cómo BigaEstudio lo resolverá con un manual estructurado.
-            REGLA ESTRICTA: Escribe en texto plano tradicional. NO uses asteriscos, ni numerales.
+            texto_pdf = """
+            BigaEstudio | Reporte de Prueba Técnica
+            
+            Negocio 1: Ferretería de Prueba
+            Error visual actual: Letrero sin identidad.
+            Solución BigaEstudio: Manual de marca.
             """
             
-            respuesta_ia = model.generate_content(prompt_investigacion)
-            texto_pdf = respuesta_ia.text.encode('latin-1', 'ignore').decode('latin-1')
-            
-            # Fabricamos el PDF y lo guardamos temporalmente en el servidor
             crear_pdf_prospeccion(texto_pdf, "Reporte_BigaEstudio.pdf")
             
-            # El mensaje de WhatsApp que acompañará al archivo
-            texto_chat = "¡Listo! He analizado el mercado. Aquí tienes el reporte detallado en PDF con los negocios y nuestra propuesta estratégica. ¿Qué te parece el enfoque que le di?"
-            
-            # La dirección de tu "ventanilla" para que Twilio baje el PDF
+            texto_chat = "¡Circuito completado! Aquí tienes tu reporte. ¿Sobre qué otro tema te gustaría que investiguemos?"
             url_pdf = "https://bigabot-agente.onrender.com/descargar-pdf"
             
             xml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -66,21 +72,26 @@ async def whatsapp_webhook(request: Request):
                 </Message>
             </Response>"""
             
+            # Borramos la memoria de este usuario para que no se confunda tras el PDF
+            if remitente in memoria_usuarios:
+                del memoria_usuarios[remitente]
+                
             return Response(content=xml_response, media_type="application/xml")
 
-        # MODO 2: EL CLIENTE SOLO ESTÁ CHATEANDO (Hola, preguntas, etc.)
+        # MODO 2: CHAT CONTINUO CON MEMORIA
         else:
-            prompt_chat = f"""
-            Eres BigaBot, estratega principal de la agencia BigaEstudio. Estás chateando por WhatsApp.
-            Mensaje del cliente: "{mensaje_usuario}"
-            REGLAS:
-            1. HABLA COMO HUMANO: Cercano, proactivo y profesional. Cero lenguaje robótico.
-            2. BREVE Y DIRECTO: Máximo 2 párrafos cortos.
-            3. ENGANCHE: Termina siempre con una pregunta corta para continuar la charla.
-            4. FORMATO: Usa un par de emojis. NO uses asteriscos ni negritas de Markdown.
-            """
+            # 1. Si el número es nuevo, le creamos su expediente en blanco
+            if remitente not in memoria_usuarios:
+                memoria_usuarios[remitente] = []
+
+            # 2. Iniciamos un hilo de chat pasándole TODO su historial
+            chat = model.start_chat(history=memoria_usuarios[remitente])
             
-            respuesta_ia = model.generate_content(prompt_chat)
+            # 3. Enviamos el mensaje actual
+            respuesta_ia = chat.send_message(mensaje_usuario)
+            
+            # 4. Actualizamos el expediente en nuestro servidor con la nueva charla
+            memoria_usuarios[remitente] = chat.history
             
             xml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
             <Response>
@@ -95,6 +106,6 @@ async def whatsapp_webhook(request: Request):
         print(f"Error técnico: {e}")
         error_xml = """<?xml version="1.0" encoding="UTF-8"?>
         <Response>
-            <Message><Body>Hubo un pequeño cortocircuito analizando la información. Dame un minuto y volvamos a intentarlo.</Body></Message>
+            <Message><Body>Dame un segundo que estoy procesando demasiada información. Volvamos a intentarlo.</Body></Message>
         </Response>"""
         return Response(content=error_xml, media_type="application/xml")
