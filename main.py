@@ -56,17 +56,54 @@ async def whatsapp_webhook(request: Request):
         mensaje_usuario = form_data.get('Body', '').lower()
         remitente = form_data.get('From', '')
         
-        # MODO 1: EL CLIENTE PIDE UNA INVESTIGACIÓN
-        if "investig" in mensaje_usuario or "reporte" in mensaje_usuario or "pdf" in mensaje_usuario:
-            texto_pdf = """
-            BigaEstudio | Reporte de Prueba Técnica
-            Negocio 1: Ferretería de Prueba
-            Error visual actual: Letrero sin identidad.
-            Solución BigaEstudio: Manual de marca.
-            """
-            crear_pdf_prospeccion(texto_pdf, "Reporte_BigaEstudio.pdf")
-            texto_chat = "¡Circuito completado! Aquí tienes tu reporte."
-            url_pdf = "https://bigabot-agente.onrender.com/descargar-pdf"
+        # Conexión a las APIs
+        from groq import Groq
+        client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+        google_api_key = os.environ.get("GOOGLE_PLACES_API_KEY") # Nueva llave requerida
+        
+        # PERSONALIDAD DEL AGENTE
+        instrucciones_sistema = "Eres BigaBot, estratega principal de adquisición B2B de BigaEstudio. Tienes una personalidad muy entusiasta, proactiva y enérgica, pero mantienes una responsabilidad técnica intachable. Tu objetivo es auditar negocios y detectar oportunidades de digitalización. REGLAS: 1. Evalúa críticamente si tienen web o WhatsApp. 2. Estructura: Nombre del Negocio, Diagnóstico, y Ángulo de Venta. 3. NO uses Markdown bajo ninguna circunstancia. 4. Sé claro y directo."
+
+        # MODO 1: EL CLIENTE PIDE UNA INVESTIGACIÓN DINÁMICA
+        if "investig" in mensaje_usuario or "reporte" in mensaje_usuario:
+            
+            # 1. Extraemos qué quiere buscar el usuario
+            query_busqueda = mensaje_usuario.replace("investiga", "").replace("reporte", "").replace("de", "").strip()
+            if not query_busqueda:
+                query_busqueda = "negocios locales"
+                
+            # 2. Buscamos en Google Maps (Google Places API)
+            resultados_maps = buscar_negocios_locales(query_busqueda, google_api_key)
+            
+            if resultados_maps:
+                info_lugares = "DATOS REALES DE GOOGLE MAPS:\n"
+                for p in resultados_maps[:3]: # Tomamos los 3 primeros resultados
+                    nombre = p.get('displayName', {}).get('text', 'Sin nombre')
+                    web = p.get('websiteUri', 'No tiene página web')
+                    tel = p.get('nationalPhoneNumber', 'No tiene teléfono público')
+                    info_lugares += f"- Negocio: {nombre} | Web: {web} | Teléfono: {tel}\n"
+            else:
+                info_lugares = "No se encontraron datos en Google Maps para esta búsqueda. Haz un análisis general."
+
+            # 3. Le pedimos a Groq que analice la data de Google
+            prompt_auditoria = f"El usuario solicitó un reporte de: '{query_busqueda}'. Aquí tienes la data real: {info_lugares}. Redacta el reporte de auditoría completo y entusiasta siguiendo tus reglas. Este texto irá directo a un PDF."
+            
+            chat_completion = client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": instrucciones_sistema},
+                    {"role": "user", "content": prompt_auditoria}
+                ],
+                model="llama-3.1-8b-instant",
+            )
+            
+            texto_reporte = chat_completion.choices[0].message.content
+            
+            # 4. Inyectamos la inteligencia de Groq en el PDF con tu logo
+            crear_pdf_prospeccion(texto_reporte, "Reporte_BigaEstudio.pdf", "logo.png")
+            
+            # 5. Enviamos el PDF por WhatsApp
+            texto_chat = f"¡Auditoría completada con éxito! 🚀 Analicé los datos reales y generé tu reporte estratégico de {query_busqueda}. Aquí lo tienes:"
+            url_pdf = "https://bigabot-agente.onrender.com/descargar-pdf" # Ajusta tu URL si es distinta
             
             xml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
             <Response>
@@ -77,32 +114,25 @@ async def whatsapp_webhook(request: Request):
             </Response>"""
             
             if remitente in memoria_usuarios:
-                del memoria_usuarios[remitente]
+                del memoria_usuarios[remitente] # Limpiamos memoria
+                
             return Response(content=xml_response, media_type="application/xml")
             
-        # MODO 2: CHAT CONTINUO CON GROQ
+        # MODO 2: CHAT CONTINUO (Consultas normales)
         else:
-            from groq import Groq
-            client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-            
             if remitente not in memoria_usuarios:
-                # Memoria inicial con instrucciones claras de sistema
                 memoria_usuarios[remitente] = [
-                    {"role": "system", "content": "Eres BigaBot, estratega principal de adquisición B2B de BigaEstudio. Analiza negocios locales y detecta oportunidades urgentes. REGLAS: 1. Evalúa si tienen web o WhatsApp. 2. Tu respuesta DEBE contener: Nombre del Negocio, Diagnóstico y Ángulo de Venta. 3. NO uses Markdown (ni negritas ni asteriscos). 4. Sé ultra directo."}
+                    {"role": "system", "content": instrucciones_sistema}
                 ]
             
-            # Guardamos lo que dice el usuario
             memoria_usuarios[remitente].append({"role": "user", "content": mensaje_usuario})
             
-            # Llamamos a Groq usando el modelo Llama 3
             chat_completion = client.chat.completions.create(
                 messages=memoria_usuarios[remitente],
                 model="llama-3.1-8b-instant",
             )
             
             respuesta_ia = chat_completion.choices[0].message.content
-            
-            # Guardamos la respuesta del bot para que tenga contexto futuro
             memoria_usuarios[remitente].append({"role": "assistant", "content": respuesta_ia})
             
             xml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
