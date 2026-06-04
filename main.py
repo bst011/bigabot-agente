@@ -57,7 +57,7 @@ async def whatsapp_webhook(request: Request):
         remitente = form_data.get('From', '') # Detectamos el número de celular que escribe
 
         # Configuramos la IA y le damos su "alma" base
-            instrucciones_base = """
+instrucciones_base = """
     Eres BigaBot, estratega principal de adquisición y auditoría B2B de la agencia BigaEstudio. Tu objetivo es analizar negocios locales y detectar oportunidades urgentes de digitalización o automatización. Me enviarás los reportes directamente por WhatsApp.
     
     REGLAS:
