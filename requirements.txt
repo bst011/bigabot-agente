@@ -4,4 +4,5 @@ fpdf2
 groq
 python-multipart
 requests
+reportlab
 
