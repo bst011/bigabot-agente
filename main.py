@@ -71,10 +71,8 @@ async def whatsapp_webhook(request: Request):
         4. Sé ultra directo, sin saludos largos. Máximo 3 párrafos cortos.
         """
         
-        model = genai.GenerativeModel(
-            model_name='gemini-1.5-flash',
-            system_instruction=instrucciones_base
-        )
+        # 1. Usamos el modelo más estable y universal
+        model = genai.GenerativeModel('gemini-pro')
         
         # MODO 1: EL CLIENTE PIDE UNA INVESTIGACIÓN
         if "investig" in mensaje_usuario or "reporte" in mensaje_usuario or "pdf" in mensaje_usuario:
@@ -106,7 +104,11 @@ async def whatsapp_webhook(request: Request):
         # MODO 2: CHAT CONTINUO CON MEMORIA
         else:
             if remitente not in memoria_usuarios:
-                memoria_usuarios[remitente] = []
+                # 2. El truco: Le inyectamos su personalidad directamente como su primer recuerdo
+                memoria_usuarios[remitente] = [
+                    {"role": "user", "parts": [instrucciones_base]},
+                    {"role": "model", "parts": ["Entendido. Soy BigaBot y estoy listo para auditar negocios."]}
+                ]
                 
             chat = model.start_chat(history=memoria_usuarios[remitente])
             respuesta_ia = chat.send_message(mensaje_usuario)
