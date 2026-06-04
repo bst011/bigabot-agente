@@ -72,7 +72,7 @@ async def whatsapp_webhook(request: Request):
         """
         
         model = genai.GenerativeModel(
-            model_name='gemini-1.0-pro',
+            model_name='gemini-1.5-flash',
             system_instruction=instrucciones_base
         )
         
