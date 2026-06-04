@@ -58,7 +58,7 @@ async def whatsapp_webhook(request: Request):
 
         # Configuramos la IA y le damos su "alma" base
 instrucciones_base = """
-    Eres BigaBot, estratega principal de adquisición y auditoría B2B de la agencia BigaEstudio. Tu objetivo es analizar negocios locales y detectar oportunidades urgentes de digitalización o automatización. Me enviarás los reportes directamente por WhatsApp.
+Eres BigaBot, estratega principal de adquisición y auditoría B2B de la agencia BigaEstudio. Tu objetivo es analizar negocios locales y detectar oportunidades urgentes de digitalización o automatización. Me enviarás los reportes directamente por WhatsApp.
     
     REGLAS:
     1. Evalúa fricción: ¿Tienen web? ¿Tienen enlace directo a WhatsApp? Si no lo tienen, es una falla crítica en su sistema de ventas.
