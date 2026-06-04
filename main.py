@@ -26,27 +26,39 @@ def entregar_pdf():
     )
 
 # 4. Herramienta de Prospección (API Google Places)
-def buscar_negocios_locales(query_usuario, api_key):
-    url = "https://places.googleapis.com/v1/places:searchText"
-    headers = {
-        "Content-Type": "application/json",
-        "X-Goog-ApiKey": api_key,
-        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.websiteUri,places.nationalPhoneNumber,places.rating,places.userRatingCount"
-    }
-    payload = {
-        "textQuery": query_usuario,
-        "languageCode": "es"
-    }
+import requests
+
+def buscar_negocios_locales(query, api_key):
     try:
-        response = requests.post(url, headers=headers, json=payload)
+        # URL oficial de la nueva Places API de Google
+        url = "https://places.googleapis.com/v1/places:searchText"
+        
+        # Las cabeceras estrictas que exige la API Nueva
+        headers = {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": api_key,
+            # El FieldMask le dice a Google exactamente qué datos queremos para no gastar crédito de más
+            "X-Goog-FieldMask": "places.displayName,places.websiteUri,places.nationalPhoneNumber"
+        }
+        
+        # El cuerpo de la búsqueda en formato JSON
+        data = {
+            "textQuery": query
+        }
+        
+        # Hacemos la petición POST con la nueva estructura
+        response = requests.post(url, headers=headers, json=data)
+        
         if response.status_code == 200:
-            return response.json().get("places", [])
+            return response.json().get('places', [])
         else:
             print(f"Error en la API de Google: {response.status_code} - {response.text}")
             return []
+            
     except Exception as e:
-        print(f"Error de conexión: {e}")
+        print(f"Error en la función buscar_negocios_locales: {e}")
         return []
+
 
 # 5. Ruta Principal de WhatsApp Webhook
 @app.post("/whatsapp")
