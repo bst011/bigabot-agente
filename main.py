@@ -2,6 +2,8 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse
 import google.generativeai as genai
 import os
+import requests
+import json
 from pdf_generator import crear_pdf_prospeccion
 
 app = FastAPI()
@@ -19,6 +21,33 @@ def home():
 @app.get("/descargar-pdf")
 def entregar_pdf():
     return FileResponse("Reporte_BigaEstudio.pdf", media_type='application/pdf', filename="Prospeccion_BigaEstudio.pdf")
+
+# --- AQUÍ EMPIEZA EL CÓDIGO NUEVO ---
+def buscar_negocios_locales(query_usuario, api_key):
+    url = "https://places.googleapis.com/v1/places:searchText"
+    
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-ApiKey": api_key,
+        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.websiteUri,places.nationalPhoneNumber,places.rating,places.userRatingCount"
+    }
+    
+    payload = {
+        "textQuery": query_usuario,
+        "languageCode": "es"
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code == 200:
+            resultados = response.json().get("places", [])
+            return resultados
+        else:
+            print(f"Error en la API de Google: {response.status_code} - {response.text}")
+            return []
+    except Exception as e:
+        print(f"Error de conexión: {e}")
+        return []
 
 @app.post("/whatsapp")
 async def whatsapp_webhook(request: Request):
