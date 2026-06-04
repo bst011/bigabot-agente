@@ -4,14 +4,10 @@ import requests
 import uvicorn
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse
-import google.generativeai as genai
 from pdf_generator import crear_pdf_prospeccion
 
 # 1. Inicialización de la App
 app = FastAPI()
-
-# 2. Configuración de Gemini
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
 # --- 🧠 EL CEREBRO DE MEMORIA ---
 memoria_usuarios = {}
@@ -60,9 +56,6 @@ async def whatsapp_webhook(request: Request):
         mensaje_usuario = form_data.get('Body', '').lower()
         remitente = form_data.get('From', '')
         
-        # 1. Usamos gemini-pro (El modelo más estable y universal)
-        model = genai.GenerativeModel('gemini-pro')
-        
         # MODO 1: EL CLIENTE PIDE UNA INVESTIGACIÓN
         if "investig" in mensaje_usuario or "reporte" in mensaje_usuario or "pdf" in mensaje_usuario:
             texto_pdf = """
@@ -87,22 +80,34 @@ async def whatsapp_webhook(request: Request):
                 del memoria_usuarios[remitente]
             return Response(content=xml_response, media_type="application/xml")
             
-        # MODO 2: CHAT CONTINUO
+        # MODO 2: CHAT CONTINUO CON GROQ
         else:
+            from groq import Groq
+            client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+            
             if remitente not in memoria_usuarios:
-                # 2. El Truco Maestro: Le damos sus reglas como el "historial" inicial
+                # Memoria inicial con instrucciones claras de sistema
                 memoria_usuarios[remitente] = [
-                    {"role": "user", "parts": ["INSTRUCCIONES SECRETAS: Actúa como BigaBot, estratega principal de adquisición B2B de BigaEstudio. Analiza negocios locales y detecta oportunidades urgentes. REGLAS: 1. Evalúa si tienen web o WhatsApp. 2. Tu respuesta DEBE contener: Nombre del Negocio, Diagnóstico y Ángulo de Venta. 3. NO uses Markdown (ni negritas ni asteriscos). 4. Sé ultra directo. Responde 'Entendido' para confirmar."]},
-                    {"role": "model", "parts": ["Entendido. Soy BigaBot y estoy listo para auditar."]}
+                    {"role": "system", "content": "Eres BigaBot, estratega principal de adquisición B2B de BigaEstudio. Analiza negocios locales y detecta oportunidades urgentes. REGLAS: 1. Evalúa si tienen web o WhatsApp. 2. Tu respuesta DEBE contener: Nombre del Negocio, Diagnóstico y Ángulo de Venta. 3. NO uses Markdown (ni negritas ni asteriscos). 4. Sé ultra directo."}
                 ]
-                
-            chat = model.start_chat(history=memoria_usuarios[remitente])
-            respuesta_ia = chat.send_message(mensaje_usuario)
-            memoria_usuarios[remitente] = chat.history
+            
+            # Guardamos lo que dice el usuario
+            memoria_usuarios[remitente].append({"role": "user", "content": mensaje_usuario})
+            
+            # Llamamos a Groq usando el modelo Llama 3
+            chat_completion = client.chat.completions.create(
+                messages=memoria_usuarios[remitente],
+                model="llama3-8b-8192",
+            )
+            
+            respuesta_ia = chat_completion.choices[0].message.content
+            
+            # Guardamos la respuesta del bot para que tenga contexto futuro
+            memoria_usuarios[remitente].append({"role": "assistant", "content": respuesta_ia})
             
             xml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
             <Response>
-                <Message><Body>{respuesta_ia.text}</Body></Message>
+                <Message><Body>{respuesta_ia}</Body></Message>
             </Response>"""
             return Response(content=xml_response, media_type="application/xml")
 
