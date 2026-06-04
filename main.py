@@ -97,7 +97,7 @@ async def whatsapp_webhook(request: Request):
             # Llamamos a Groq usando el modelo Llama 3
             chat_completion = client.chat.completions.create(
                 messages=memoria_usuarios[remitente],
-                model="llama3-8b-8192",
+                model="llama-3.1-8b-instant",
             )
             
             respuesta_ia = chat_completion.choices[0].message.content
