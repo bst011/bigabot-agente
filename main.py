@@ -60,21 +60,8 @@ async def whatsapp_webhook(request: Request):
         mensaje_usuario = form_data.get('Body', '').lower()
         remitente = form_data.get('From', '')
         
-        instrucciones_base = """
-        Eres BigaBot, estratega principal de adquisición y auditoría B2B de la agencia BigaEstudio. Tu objetivo es analizar negocios locales y detectar oportunidades urgentes de digitalización o automatización. Me enviarás los reportes directamente por WhatsApp.
-        
-        REGLAS:
-        1. Evalúa fricción: ¿Tienen web? ¿Tienen enlace directo a WhatsApp? Si no lo tienen, es una falla crítica en su sistema de ventas.
-        2. Estructura estricta: Tu respuesta DEBE contener solo 3 cosas: Nombre del Negocio, Diagnóstico y Ángulo de Venta Recomendado.
-        3. Formato para WhatsApp: NO uses asteriscos ni negritas de Markdown. Usa texto plano, guiones para listar y un par de emojis.
-        4. Sé ultra directo, sin saludos largos. Máximo 3 párrafos cortos.
-        """
-        
-        # Volvemos al modelo más rápido y moderno ahora que tenemos la llave correcta
-        model = genai.GenerativeModel(
-            model_name='gemini-1.5-flash',
-            system_instruction=instrucciones_base
-        )
+        # 1. Usamos gemini-pro (El modelo más estable y universal)
+        model = genai.GenerativeModel('gemini-pro')
         
         # MODO 1: EL CLIENTE PIDE UNA INVESTIGACIÓN
         if "investig" in mensaje_usuario or "reporte" in mensaje_usuario or "pdf" in mensaje_usuario:
@@ -103,7 +90,11 @@ async def whatsapp_webhook(request: Request):
         # MODO 2: CHAT CONTINUO
         else:
             if remitente not in memoria_usuarios:
-                memoria_usuarios[remitente] = []
+                # 2. El Truco Maestro: Le damos sus reglas como el "historial" inicial
+                memoria_usuarios[remitente] = [
+                    {"role": "user", "parts": ["INSTRUCCIONES SECRETAS: Actúa como BigaBot, estratega principal de adquisición B2B de BigaEstudio. Analiza negocios locales y detecta oportunidades urgentes. REGLAS: 1. Evalúa si tienen web o WhatsApp. 2. Tu respuesta DEBE contener: Nombre del Negocio, Diagnóstico y Ángulo de Venta. 3. NO uses Markdown (ni negritas ni asteriscos). 4. Sé ultra directo. Responde 'Entendido' para confirmar."]},
+                    {"role": "model", "parts": ["Entendido. Soy BigaBot y estoy listo para auditar."]}
+                ]
                 
             chat = model.start_chat(history=memoria_usuarios[remitente])
             respuesta_ia = chat.send_message(mensaje_usuario)
@@ -122,6 +113,7 @@ async def whatsapp_webhook(request: Request):
             <Message><Body>Dame un segundo que estoy procesando demasiada información. Volvamos a intentarlo.</Body></Message>
         </Response>"""
         return Response(content=error_xml, media_type="application/xml")
+
 
 # 6. Arranque del Servidor (El motor que le faltaba a Render)
 if __name__ == "__main__":
