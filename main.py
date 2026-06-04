@@ -60,32 +60,32 @@ async def whatsapp_webhook(request: Request):
         mensaje_usuario = form_data.get('Body', '').lower()
         remitente = form_data.get('From', '')
         
-        # Configuración del Agente IA
         instrucciones_base = """
         Eres BigaBot, estratega principal de adquisición y auditoría B2B de la agencia BigaEstudio. Tu objetivo es analizar negocios locales y detectar oportunidades urgentes de digitalización o automatización. Me enviarás los reportes directamente por WhatsApp.
         
         REGLAS:
         1. Evalúa fricción: ¿Tienen web? ¿Tienen enlace directo a WhatsApp? Si no lo tienen, es una falla crítica en su sistema de ventas.
-        2. Estructura estricta: Tu respuesta DEBE contener solo 3 cosas: Nombre del Negocio, Diagnóstico (el problema detectado) y Ángulo de Venta Recomendado (ej: Bot de WhatsApp o Ecosistema Web).
-        3. Formato para WhatsApp: NO uses asteriscos ni negritas de Markdown bajo ninguna circunstancia. Usa texto plano, guiones para listar y un par de emojis para separar la información.
+        2. Estructura estricta: Tu respuesta DEBE contener solo 3 cosas: Nombre del Negocio, Diagnóstico y Ángulo de Venta Recomendado.
+        3. Formato para WhatsApp: NO uses asteriscos ni negritas de Markdown. Usa texto plano, guiones para listar y un par de emojis.
         4. Sé ultra directo, sin saludos largos. Máximo 3 párrafos cortos.
         """
         
-        # 1. Usamos el modelo más estable y universal
-        model = genai.GenerativeModel('gemini-pro')
+        # Volvemos al modelo más rápido y moderno ahora que tenemos la llave correcta
+        model = genai.GenerativeModel(
+            model_name='gemini-1.5-flash',
+            system_instruction=instrucciones_base
+        )
         
         # MODO 1: EL CLIENTE PIDE UNA INVESTIGACIÓN
         if "investig" in mensaje_usuario or "reporte" in mensaje_usuario or "pdf" in mensaje_usuario:
             texto_pdf = """
             BigaEstudio | Reporte de Prueba Técnica
-            
             Negocio 1: Ferretería de Prueba
             Error visual actual: Letrero sin identidad.
             Solución BigaEstudio: Manual de marca.
             """
             crear_pdf_prospeccion(texto_pdf, "Reporte_BigaEstudio.pdf")
-            
-            texto_chat = "¡Circuito completado! Aquí tienes tu reporte. ¿Sobre qué otro tema te gustaría que investiguemos?"
+            texto_chat = "¡Circuito completado! Aquí tienes tu reporte."
             url_pdf = "https://bigabot-agente.onrender.com/descargar-pdf"
             
             xml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -98,17 +98,12 @@ async def whatsapp_webhook(request: Request):
             
             if remitente in memoria_usuarios:
                 del memoria_usuarios[remitente]
-                
             return Response(content=xml_response, media_type="application/xml")
             
-        # MODO 2: CHAT CONTINUO CON MEMORIA
+        # MODO 2: CHAT CONTINUO
         else:
             if remitente not in memoria_usuarios:
-                # 2. El truco: Le inyectamos su personalidad directamente como su primer recuerdo
-                memoria_usuarios[remitente] = [
-                    {"role": "user", "parts": [instrucciones_base]},
-                    {"role": "model", "parts": ["Entendido. Soy BigaBot y estoy listo para auditar negocios."]}
-                ]
+                memoria_usuarios[remitente] = []
                 
             chat = model.start_chat(history=memoria_usuarios[remitente])
             respuesta_ia = chat.send_message(mensaje_usuario)
@@ -116,11 +111,8 @@ async def whatsapp_webhook(request: Request):
             
             xml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
             <Response>
-                <Message>
-                    <Body>{respuesta_ia.text}</Body>
-                </Message>
+                <Message><Body>{respuesta_ia.text}</Body></Message>
             </Response>"""
-            
             return Response(content=xml_response, media_type="application/xml")
 
     except Exception as e:
