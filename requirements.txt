@@ -1,7 +1,7 @@
 fastapi
 uvicorn
 fpdf2
-google-generativeai>=0.5.2
+groq
 python-multipart
 requests
 
