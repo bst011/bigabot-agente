@@ -30,33 +30,23 @@ import requests
 
 def buscar_negocios_locales(query, api_key):
     try:
-        # URL oficial de la nueva Places API de Google
         url = "https://places.googleapis.com/v1/places:searchText"
         
-        # Las cabeceras estrictas que exige la API Nueva
+        # Le pedimos a Google el combo completo de datos
         headers = {
             "Content-Type": "application/json",
             "X-Goog-Api-Key": api_key,
-            # El FieldMask le dice a Google exactamente qué datos queremos para no gastar crédito de más
-            "X-Goog-FieldMask": "places.displayName,places.websiteUri,places.nationalPhoneNumber"
+            "X-Goog-FieldMask": "places.displayName,places.websiteUri,places.nationalPhoneNumber,places.rating,places.userRatingCount,places.formattedAddress"
         }
         
-        # El cuerpo de la búsqueda en formato JSON
-        data = {
-            "textQuery": query
-        }
-        
-        # Hacemos la petición POST con la nueva estructura
+        data = {"textQuery": query}
         response = requests.post(url, headers=headers, json=data)
         
         if response.status_code == 200:
             return response.json().get('places', [])
         else:
-            print(f"Error en la API de Google: {response.status_code} - {response.text}")
             return []
-            
-    except Exception as e:
-        print(f"Error en la función buscar_negocios_locales: {e}")
+    except:
         return []
 
 
@@ -84,21 +74,42 @@ async def whatsapp_webhook(request: Request):
             if not query_busqueda:
                 query_busqueda = "negocios locales"
                 
-            # 2. Buscamos en Google Maps (Google Places API)
+                        # 1. Buscamos en Google Maps (Google Places API)
             resultados_maps = buscar_negocios_locales(query_busqueda, google_api_key)
             
             if resultados_maps:
-                info_lugares = "DATOS REALES DE GOOGLE MAPS:\n"
-                for p in resultados_maps[:3]: # Tomamos los 3 primeros resultados
-                    nombre = p.get('displayName', {}).get('text', 'Sin nombre')
-                    web = p.get('websiteUri', 'No tiene página web')
-                    tel = p.get('nationalPhoneNumber', 'No tiene teléfono público')
-                    info_lugares += f"- Negocio: {nombre} | Web: {web} | Teléfono: {tel}\n"
+                info_lugares = "DATOS REALES EXTRAÍDOS:\n"
+                # Nos enfocamos en el primer resultado para hacer un reporte hiper-personalizado
+                p = resultados_maps[0] 
+                nombre = p.get('displayName', {}).get('text', 'Sin nombre')
+                web = p.get('websiteUri', 'No tiene página web oficial')
+                tel = p.get('nationalPhoneNumber', 'No tiene teléfono público')
+                direccion = p.get('formattedAddress', 'Dirección no especificada')
+                rating = p.get('rating', 'Sin calificación')
+                reviews = p.get('userRatingCount', '0')
+                
+                info_lugares += f"- Negocio: {nombre}\n- Dirección: {direccion}\n- Web: {web}\n- Teléfono: {tel}\n- Calificación: {rating} estrellas (basado en {reviews} reseñas)\n"
             else:
-                info_lugares = "No se encontraron datos en Google Maps para esta búsqueda. Haz un análisis general."
+                info_lugares = "No se encontraron datos exactos en Maps."
 
-            # 3. Le pedimos a Groq que analice la data de Google
-            prompt_auditoria = f"El usuario solicitó un reporte de: '{query_busqueda}'. Aquí tienes la data real: {info_lugares}. Redacta el reporte de auditoría completo y entusiasta siguiendo tus reglas. Este texto irá directo a un PDF."
+            # 2. EL NUEVO CEREBRO DE VENTAS
+            instrucciones_sistema = """Eres BigaBot, el auditor B2B más letal y persuasivo de BigaEstudio. 
+            Redacta un reporte de auditoría digital que haga que el dueño del negocio sienta urgencia por digitalizarse contigo.
+            REGLAS ESTRICTAS:
+            1. Usa la fórmula de ventas PAS (Problema - Agitación - Solución). No seas 'amable', evidencia el dinero que están perdiendo.
+            2. Usa los datos reales proporcionados (estrellas, cantidad de opiniones, falta de web). Úsalos para demostrar autoridad.
+            3. FORMATO VISUAL: Usa la etiqueta HTML <b>texto</b> para resaltar palabras clave o métricas. NO uses markdown (ni asteriscos, ni numerales).
+            4. Estructura el reporte exactamente así:
+               <b>DIAGNÓSTICO INICIAL</b>
+               [Texto del problema]
+               
+               <b>EL IMPACTO (LO QUE ESTÁS PERDIENDO)</b>
+               [Agitación del problema usando los datos]
+               
+               <b>PLAN DE ACCIÓN BIGAESTUDIO</b>
+               [La solución directa]"""
+
+            prompt_auditoria = f"Analiza esta data de la búsqueda '{query_busqueda}':\n{info_lugares}\n\nGenera el reporte directo y persuasivo."
             
             chat_completion = client.chat.completions.create(
                 messages=[
@@ -107,6 +118,7 @@ async def whatsapp_webhook(request: Request):
                 ],
                 model="llama-3.1-8b-instant",
             )
+
             
             texto_reporte = chat_completion.choices[0].message.content
             
