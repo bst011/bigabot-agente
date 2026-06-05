@@ -27,18 +27,18 @@ def entregar_pdf():
 
 # 4. Herramienta de Prospección (API Google Places)
 import requests
+from bs4 import BeautifulSoup
+import re
 
 def buscar_negocios_locales(query, api_key):
     try:
         url = "https://places.googleapis.com/v1/places:searchText"
-        
-        # Le pedimos a Google el combo completo de datos
         headers = {
             "Content-Type": "application/json",
             "X-Goog-Api-Key": api_key,
-            "X-Goog-FieldMask": "places.displayName,places.websiteUri,places.nationalPhoneNumber,places.rating,places.userRatingCount,places.formattedAddress"
+            # Ahora pedimos reseñas y links de Google Maps también
+            "X-Goog-FieldMask": "places.displayName,places.websiteUri,places.nationalPhoneNumber,places.rating,places.userRatingCount,places.formattedAddress,places.reviews,places.googleMapsUri"
         }
-        
         data = {"textQuery": query}
         response = requests.post(url, headers=headers, json=data)
         
@@ -46,8 +46,36 @@ def buscar_negocios_locales(query, api_key):
             return response.json().get('places', [])
         else:
             return []
-    except:
+    except Exception as e:
+        print(f"Error en buscar_negocios_locales: {e}")
         return []
+
+def francotirador_web(url):
+    if not url or url == 'No tiene página web oficial':
+        return "No tiene web para espiar."
+    try:
+        # Timeout de 3 segundos para que WhatsApp no corte la llamada
+        res = requests.get(url, timeout=3)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        links = soup.find_all('a', href=True)
+        rrss = set()
+        emails = set()
+        for a in links:
+            href = a.get('href', '').lower()
+            if 'instagram.com' in href: rrss.add('Instagram')
+            if 'facebook.com' in href: rrss.add('Facebook')
+            if 'tiktok.com' in href: rrss.add('TikTok')
+            if 'mailto:' in href: emails.add(href.replace('mailto:', ''))
+        
+        correos_texto = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', soup.text)
+        emails.update(correos_texto)
+        
+        estado = f"Redes conectadas en su web: {', '.join(rrss) if rrss else '¡Ninguna! (Punto ciego)'}. "
+        estado += f"Correos visibles: {', '.join(emails) if emails else 'Ninguno (Difícil contacto)'}."
+        return estado
+    except:
+        return "Su página web está caída, da error o tarda mucho en cargar (¡Grave problema de servidor!)."
 
 
 # 5. Ruta Principal de WhatsApp Webhook
@@ -74,12 +102,11 @@ async def whatsapp_webhook(request: Request):
             if not query_busqueda:
                 query_busqueda = "negocios locales"
                 
-                        # 1. Buscamos en Google Maps (Google Places API)
+                                    # 1. Buscamos en Google Maps (Google Places API)
             resultados_maps = buscar_negocios_locales(query_busqueda, google_api_key)
             
             if resultados_maps:
                 info_lugares = "DATOS REALES EXTRAÍDOS:\n"
-                # Nos enfocamos en el primer resultado para hacer un reporte hiper-personalizado
                 p = resultados_maps[0] 
                 nombre = p.get('displayName', {}).get('text', 'Sin nombre')
                 web = p.get('websiteUri', 'No tiene página web oficial')
@@ -88,26 +115,24 @@ async def whatsapp_webhook(request: Request):
                 rating = p.get('rating', 'Sin calificación')
                 reviews = p.get('userRatingCount', '0')
                 
+                # Disparamos el francotirador web para analizar su página
+                datos_scrap = francotirador_web(web)
+                
                 info_lugares += f"- Negocio: {nombre}\n- Dirección: {direccion}\n- Web: {web}\n- Teléfono: {tel}\n- Calificación: {rating} estrellas (basado en {reviews} reseñas)\n"
+                info_lugares += f"- Espionaje Web: {datos_scrap}\n"
             else:
                 info_lugares = "No se encontraron datos exactos en Maps."
 
             # 2. EL NUEVO CEREBRO DE VENTAS
-            instrucciones_sistema = """Eres BigaBot, el auditor B2B más letal y persuasivo de BigaEstudio. 
-            Redacta un reporte de auditoría digital que haga que el dueño del negocio sienta urgencia por digitalizarse contigo.
+            instrucciones_sistema = """Eres BigaBot, auditor B2B letal de BigaEstudio en Chile.
             REGLAS ESTRICTAS:
-            1. Usa la fórmula de ventas PAS (Problema - Agitación - Solución). No seas 'amable', evidencia el dinero que están perdiendo.
-            2. Usa los datos reales proporcionados (estrellas, cantidad de opiniones, falta de web). Úsalos para demostrar autoridad.
-            3. FORMATO VISUAL: Usa la etiqueta HTML <b>texto</b> para resaltar palabras clave o métricas. NO uses markdown (ni asteriscos, ni numerales).
-            4. Estructura el reporte exactamente así:
-               <b>DIAGNÓSTICO INICIAL</b>
-               [Texto del problema]
-               
-               <b>EL IMPACTO (LO QUE ESTÁS PERDIENDO)</b>
-               [Agitación del problema usando los datos]
-               
-               <b>PLAN DE ACCIÓN BIGAESTUDIO</b>
-               [La solución directa]"""
+            1. Usa la fórmula PAS (Problema - Agitación - Solución).
+            2. LA PSICOLOGÍA DE LA INVISIBILIDAD: 
+               - Si tienen menos de 20 reseñas (aunque sean 5 estrellas), diles: "Tienes un servicio excelente, pero eres un fantasma digital. Tus competidores con peor servicio se llevan a tus clientes solo porque tienen más reseñas".
+               - Si no tienen redes en su web o está caída, diles que están perdiendo a la generación actual de compradores.
+            3. DINERO REAL CHILENO: Calcula pérdidas en CLP (ej: "Perder 3 cotizaciones a la semana son $500.000 CLP menos en tu bolsillo"). Usa montos lógicos para Chile.
+            4. FORMATO: Usa <b>texto</b> para resaltar lo importante. NO uses markdown. Usa un tono crudo de consultor.
+            """
 
             prompt_auditoria = f"Analiza esta data de la búsqueda '{query_busqueda}':\n{info_lugares}\n\nGenera el reporte directo y persuasivo."
             
