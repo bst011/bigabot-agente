@@ -92,7 +92,7 @@ async def whatsapp_webhook(request: Request):
         google_api_key = os.environ.get("GOOGLE_PLACES_API_KEY") # Nueva llave requerida
         
         # PERSONALIDAD DEL AGENTE
-        instrucciones_sistema = 
+        instrucciones_sistema = "Eres BigaBot, estratega principal de adquisición B2B de BigaEstudio."
 
         # MODO 1: EL CLIENTE PIDE UNA INVESTIGACIÓN DINÁMICA
         if "investig" in mensaje_usuario or "reporte" in mensaje_usuario:
@@ -149,15 +149,15 @@ Aplica la Ecuación de Valor. Promételes su resultado soñado con alta probabil
 
 PÁRRAFO 3: La Oferta El Padrino, Gatillos y Cierre Push/Pull.
 Presenta una oferta irresistible con una garantía que elimine absolutamente todo el riesgo. Aplica Escasez (ej. "solo aceptamos a 2 clientes de tu sector este mes") y Urgencia (ej. "esta oportunidad de evaluación se cierra en 48 horas"). Termina con un cierre Push/Pull de alta tensión: diles que si están listos para dominar su mercado, respondan de inmediato; pero si prefieren seguir estancados y perder clientes, pueden ignorar el reporte y le ofrecerás esta misma oportunidad de crecimiento a su mayor competidor directo.
+
+REGLAS ESTRICTAS:
+1. Usa la fórmula PAS (Problema - Agitación - Solución).
+2. LA PSICOLOGÍA DE LA INVISIBILIDAD: 
+   - Si tienen menos de 20 reseñas (aunque sean 5 estrellas), diles: "Tienes un servicio excelente, pero eres un fantasma digital. Tus competidores con peor servicio se llevan a tus clientes solo porque tienen más reseñas".
+   - Si no tienen redes en su web o está caída, diles que están perdiendo a la generación actual de compradores.
+3. DINERO REAL CHILENO: Calcula pérdidas en CLP (ej: "Perder 3 cotizaciones a la semana son $500.000 CLP menos en tu bolsillo"). Usa montos lógicos para Chile.
+4. FORMATO: Usa <b>texto</b> para resaltar lo importante. NO uses markdown. Usa un tono crudo de consultor.
 """
-            REGLAS ESTRICTAS:
-            1. Usa la fórmula PAS (Problema - Agitación - Solución).
-            2. LA PSICOLOGÍA DE LA INVISIBILIDAD: 
-               - Si tienen menos de 20 reseñas (aunque sean 5 estrellas), diles: "Tienes un servicio excelente, pero eres un fantasma digital. Tus competidores con peor servicio se llevan a tus clientes solo porque tienen más reseñas".
-               - Si no tienen redes en su web o está caída, diles que están perdiendo a la generación actual de compradores.
-            3. DINERO REAL CHILENO: Calcula pérdidas en CLP (ej: "Perder 3 cotizaciones a la semana son $500.000 CLP menos en tu bolsillo"). Usa montos lógicos para Chile.
-            4. FORMATO: Usa <b>texto</b> para resaltar lo importante. NO uses markdown. Usa un tono crudo de consultor.
-            """
 
             prompt_auditoria = f"Analiza esta data de la búsqueda '{query_busqueda}':\n{info_lugares}\n\nGenera el reporte directo y persuasivo."
             
