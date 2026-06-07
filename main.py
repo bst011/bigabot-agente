@@ -5,6 +5,8 @@ import uvicorn
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse
 from pdf_generator import crear_pdf_prospeccion
+from bs4 import BeautifulSoup
+import re
 
 # 1. Inicialización de la App
 app = FastAPI()
@@ -15,7 +17,7 @@ memoria_usuarios = {}
 # 3. Rutas Básicas
 @app.get("/")
 def home():
-    return {"mensaje": "Servidor de BigaEstudio. Escuchando WhatsApp con memoria..."}
+    return {"mensaje": "Servidor de BigaEstudio activo. Motor de prospección en línea..."}
 
 @app.get("/descargar-pdf")
 def entregar_pdf():
@@ -25,18 +27,13 @@ def entregar_pdf():
         filename="Prospeccion_BigaEstudio.pdf"
     )
 
-# 4. Herramienta de Prospección (API Google Places)
-import requests
-from bs4 import BeautifulSoup
-import re
-
+# 4. Herramientas de Prospección
 def buscar_negocios_locales(query, api_key):
     try:
         url = "https://places.googleapis.com/v1/places:searchText"
         headers = {
             "Content-Type": "application/json",
             "X-Goog-Api-Key": api_key,
-            # Ahora pedimos reseñas y links de Google Maps también
             "X-Goog-FieldMask": "places.displayName,places.websiteUri,places.nationalPhoneNumber,places.rating,places.userRatingCount,places.formattedAddress,places.reviews,places.googleMapsUri"
         }
         data = {"textQuery": query}
@@ -52,10 +49,11 @@ def buscar_negocios_locales(query, api_key):
 
 def francotirador_web(url):
     if not url or url == 'No tiene página web oficial':
-        return "No tiene web para espiar."
+        return "Ausencia total de ecosistema web."
     try:
-        # Timeout de 3 segundos para que WhatsApp no corte la llamada
-        res = requests.get(url, timeout=3)
+        # Timeout bajado a 2 para soportar múltiples webs sin romper el límite de WhatsApp
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        res = requests.get(url, headers=headers, timeout=2)
         soup = BeautifulSoup(res.text, 'html.parser')
         
         links = soup.find_all('a', href=True)
@@ -71,11 +69,11 @@ def francotirador_web(url):
         correos_texto = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', soup.text)
         emails.update(correos_texto)
         
-        estado = f"Redes conectadas en su web: {', '.join(rrss) if rrss else '¡Ninguna! (Punto ciego)'}. "
-        estado += f"Correos visibles: {', '.join(emails) if emails else 'Ninguno (Difícil contacto)'}."
+        estado = f"Puntos de contacto detectados: {', '.join(rrss) if rrss else 'Sin integración social'}. "
+        estado += f"Líneas de correo: {', '.join(emails) if emails else 'Inexistentes (Fricción de contacto alta)'}."
         return estado
     except:
-        return "Su página web está caída, da error o tarda mucho en cargar (¡Grave problema de servidor!)."
+        return "Servidor inestable o web caída. Grave falla de infraestructura digital."
 
 
 # 5. Ruta Principal de WhatsApp Webhook
@@ -89,61 +87,64 @@ async def whatsapp_webhook(request: Request):
         # Conexión a las APIs
         from groq import Groq
         client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-        google_api_key = os.environ.get("GOOGLE_PLACES_API_KEY") # Nueva llave requerida
+        google_api_key = os.environ.get("GOOGLE_PLACES_API_KEY")
         
-        # PERSONALIDAD DEL AGENTE
         instrucciones_sistema = "Eres BigaBot, estratega principal de adquisición B2B de BigaEstudio."
 
-        # MODO 1: EL CLIENTE PIDE UNA INVESTIGACIÓN DINÁMICA
+        # MODO 1: INVESTIGACIÓN DINÁMICA
         if "investig" in mensaje_usuario or "reporte" in mensaje_usuario:
             
-            # 1. Extraemos qué quiere buscar el usuario
             query_busqueda = mensaje_usuario.replace("investiga", "").replace("reporte", "").replace("de", "").strip()
             if not query_busqueda:
                 query_busqueda = "negocios locales"
                 
-                                    # 1. Buscamos en Google Maps (Google Places API)
             resultados_maps = buscar_negocios_locales(query_busqueda, google_api_key)
             
             if resultados_maps:
-                info_lugares = "DATOS REALES EXTRAÍDOS:\n"
-                p = resultados_maps[0] 
-                nombre = p.get('displayName', {}).get('text', 'Sin nombre')
-                web = p.get('websiteUri', 'No tiene página web oficial')
-                tel = p.get('nationalPhoneNumber', 'No tiene teléfono público')
-                direccion = p.get('formattedAddress', 'Dirección no especificada')
-                rating = p.get('rating', 'Sin calificación')
-                reviews = p.get('userRatingCount', '0')
+                info_lugares = "DATA CRUDA DE LOS OBJETIVOS (TOP 3 DEL RUBRO):\n\n"
                 
-                # Disparamos el francotirador web para analizar su página
-                datos_scrap = francotirador_web(web)
-                
-                info_lugares += f"- Negocio: {nombre}\n- Dirección: {direccion}\n- Web: {web}\n- Teléfono: {tel}\n- Calificación: {rating} estrellas (basado en {reviews} reseñas)\n"
-                info_lugares += f"- Espionaje Web: {datos_scrap}\n"
+                # Tomamos hasta los 3 primeros resultados
+                for indice, p in enumerate(resultados_maps[:3]):
+                    nombre = p.get('displayName', {}).get('text', 'Sin nombre')
+                    web = p.get('websiteUri', 'No tiene página web oficial')
+                    tel = p.get('nationalPhoneNumber', 'No tiene teléfono público')
+                    direccion = p.get('formattedAddress', 'Dirección no especificada')
+                    rating = p.get('rating', 'Sin calificación')
+                    reviews = p.get('userRatingCount', '0')
+                    
+                    datos_scrap = francotirador_web(web)
+                    
+                    info_lugares += f"PROSPECTO {indice + 1}:\n"
+                    info_lugares += f"- Entidad: {nombre}\n- Base Operativa: {direccion}\n- Infraestructura Web: {web}\n- Canal Telefónico: {tel}\n- Reputación: {rating} estrellas (Volumen: {reviews} reseñas)\n"
+                    info_lugares += f"- Diagnóstico de Nodos Web: {datos_scrap}\n"
+                    info_lugares += "--------------------------------------------------\n"
             else:
-                info_lugares = "No se encontraron datos exactos en Maps."
+                info_lugares = "El radar no encontró entidades exactas en Maps para esta consulta."
 
-                        # 2. EL NUEVO CEREBRO: ARQUITECTO DE SOLUCIONES
-            instrucciones_sistema = """Eres BigaBot, el Arquitecto de Soluciones de BigaEstudio. Tu objetivo es auditar negocios locales en Chile y entregar dos cosas en tu misma respuesta: un reporte sutil para el cliente, y un plan técnico interno para Bastián.
+            # EL NUEVO CEREBRO: PROSPECTOS MÚLTIPLES
+            instrucciones_sistema = """Eres BigaBot, Arquitecto de Soluciones Digitales. Auditas nichos de mercado en Chile para estructurar su digitalización.
 
-ESTRUCTURA EXACTA DE TU RESPUESTA (Debes usar estas etiquetas exactas):
+REGLAS ESTRICTAS DE ANÁLISIS:
+1. CONTEXTO GEOGRÁFICO: Si la dirección indica una comuna metropolitana o de alto tráfico, sugiere automatización pesada. Si es una zona más rural o comunitaria, sugiere herramientas ágiles (ej. WhatsApp Business, perfiles de Google locales) antes que un e-commerce complejo.
+2. PROYECCIÓN FINANCIERA REALISTA: NO uses números fijos. Calcula la estimación de fuga de capital basándote proporcionalmente en el volumen de reseñas y el ticket promedio del rubro analizado.
+
+ESTRUCTURA EXACTA DE TU RESPUESTA:
 
 [REPORTE CLIENTE]
-Redacta 3 párrafos sutiles, profesionales y analíticos para el dueño del negocio.
-Párrafo 1: Observación objetiva. Menciona su negocio y sus datos (reseñas, web). Valida su esfuerzo actual (ej. si tienen web o WhatsApp), pero muestra la deficiencia técnica de forma sutil.
-Párrafo 2: El cuello de botella. Explica con lógica cómo esa fricción les hace perder ventas (ej. clientes nocturnos que no pueden comprar). Calcula una pérdida realista en CLP (ej. $200.000 a $400.000 mensuales en cotizaciones perdidas).
-Párrafo 3: Invitación profesional. Invítalos a una charla exploratoria de 10 minutos para evaluar cómo optimizar ese sistema. Cero presión, actúa como un consultor que viene a solucionar fugas.
-Usa la etiqueta HTML <b>texto</b> para resaltar los datos.
+Redacta 3 párrafos como consultor estratégico analizando el mercado local:
+Párrafo 1: Visión General del Rubro. Menciona los negocios analizados y destaca el patrón de fallas o aciertos digitales que encontraste entre ellos (quién lidera, quién se queda atrás).
+Párrafo 2: El Foco de Oportunidad. Elige al prospecto que tenga más potencial de mejora (el que pierde más dinero por su fricción actual) y calcula su fuga de capital mensual en CLP de forma lógica.
+Párrafo 3: Puente Estratégico. Propuesta de sesión de 10 minutos dirigida a ese negocio específico o al rubro en general para ensamblar una solución definitiva.
+Usa <b>texto</b> para resaltar datos duros.
 
 [PLAN INTERNO]
-Háblale directo a Bastián (tu jefe). Dale 3 viñetas tácticas con el "Plano de Ensamblaje" para este cliente.
-Ejemplo de formato: 
-- 🛠️ Herramienta Sugerida: [Qué usar, ej. WooCommerce, Zapier].
-- ⚙️ Solución Técnica: [Qué conectar con qué].
-- 💡 Ángulo de Charla: [De qué hablar si el cliente acepta la reunión].
+Instrucciones de arquitectura para el equipo de desarrollo.
+- 📐 Estructura Sugerida: [Software o plataforma viable según el entorno geográfico y tamaño del nicho].
+- 🔌 Nodos de Integración: [Cómo conectar la solución sin interrumpir su operación física actual].
+- 🎯 Eje de Conversión: [El punto de dolor específico a presionar durante la reunión comercial].
 """
 
-            prompt_auditoria = f"Analiza esta data de la búsqueda '{query_busqueda}':\n{info_lugares}\n\nGenera el reporte sutil y el plan interno."
+            prompt_auditoria = f"Ejecuta el análisis de mercado sobre la siguiente estructura comercial:\n{info_lugares}\n\nGenera el reporte de nicho para el cliente y el esquema interno."
             
             chat_completion = client.chat.completions.create(
                 messages=[
@@ -151,26 +152,23 @@ Ejemplo de formato:
                     {"role": "user", "content": prompt_auditoria}
                 ],
                model="llama-3.3-70b-versatile",
-
+               temperature=0.4
             )
 
             respuesta_completa = chat_completion.choices[0].message.content
             
-            # 3. Separamos el reporte del cliente del plan de Bastián
             if "[PLAN INTERNO]" in respuesta_completa:
                 partes = respuesta_completa.split("[PLAN INTERNO]")
                 texto_pdf = partes[0].replace("[REPORTE CLIENTE]", "").strip()
-                plan_interno = "Tu Plano de Ensamblaje Técnico:\n\n" + partes[1].strip()
+                plan_interno = "Arquitectura Técnica Recomendada:\n\n" + partes[1].strip()
             else:
                 texto_pdf = respuesta_completa
-                plan_interno = "Nota: La IA no separó el plan interno. Revisa el PDF para la data."
+                plan_interno = "Error de parseo: La IA no dividió los bloques. Revisa el PDF."
 
-            # 4. Inyectamos solo el reporte sutil en el PDF
             crear_pdf_prospeccion(texto_pdf, "Reporte_BigaEstudio.pdf", "logo.png")
             
-            # 5. Enviamos el PDF y el Plan Interno por WhatsApp
-            url_pdf = "https://bigabot-agente.onrender.com/descargar-pdf" # Ajusta tu URL si es distinta
-            texto_chat = f"¡Análisis completado, Bastián! 🚀\n\n{plan_interno}"
+            url_pdf = "https://bigabot-agente.onrender.com/descargar-pdf"
+            texto_chat = f"¡Diagnóstico de terreno completado! 🚀\n\n{plan_interno}"
             
             xml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
             <Response>
@@ -181,12 +179,11 @@ Ejemplo de formato:
             </Response>"""
             
             if remitente in memoria_usuarios:
-                del memoria_usuarios[remitente] # Limpiamos memoria
+                del memoria_usuarios[remitente]
                 
             return Response(content=xml_response, media_type="application/xml")
 
-            
-        # MODO 2: CHAT CONTINUO (Consultas normales)
+        # MODO 2: CHAT CONTINUO
         else:
             if remitente not in memoria_usuarios:
                 memoria_usuarios[remitente] = [
@@ -213,12 +210,10 @@ Ejemplo de formato:
         print(f"Error técnico en el webhook: {e}")
         error_xml = """<?xml version="1.0" encoding="UTF-8"?>
         <Response>
-            <Message><Body>Dame un segundo que estoy procesando demasiada información. Volvamos a intentarlo.</Body></Message>
+            <Message><Body>Ajustando conexiones en la base de datos. Dame un minuto y repite la orden.</Body></Message>
         </Response>"""
         return Response(content=error_xml, media_type="application/xml")
 
-
-# 6. Arranque del Servidor (El motor que le faltaba a Render)
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     uvicorn.run(app, host="0.0.0.0", port=port)
