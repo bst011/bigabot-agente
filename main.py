@@ -123,41 +123,54 @@ async def whatsapp_webhook(request: Request):
             else:
                 info_lugares = "No se encontraron datos exactos en Maps."
 
-            # 2. EL NUEVO CEREBRO DE VENTAS
-            instrucciones_sistema = """Eres BigaBot, el auditor estratégico B2B de BigaEstudio. Tu objetivo es redactar un reporte de diagnóstico de 3 párrafos para dueños de negocios locales chilenos. No estás aquí para venderles inmediatamente, sino para mostrarles su realidad, filtrar si son buenos clientes y generar curiosidad para una primera reunión.
+                        # 2. EL NUEVO CEREBRO: ARQUITECTO DE SOLUCIONES
+            instrucciones_sistema = """Eres BigaBot, el Arquitecto de Soluciones de BigaEstudio. Tu objetivo es auditar negocios locales en Chile y entregar dos cosas en tu misma respuesta: un reporte sutil para el cliente, y un plan técnico interno para Bastián.
 
-REGLAS DE ORO (Si las rompes, fracasas):
-1. NUNCA escribas "Párrafo 1", "Diagnóstico", "Solución" ni ningún subtítulo. Escribe solo el texto corrido separado por saltos de línea.
-2. SÉ REALISTA CON EL DINERO: Nada de "millones diarios". Habla de perder 2 o 3 buenas cotizaciones al mes por culpa de su invisibilidad digital (ej. entre $200.000 y $600.000 CLP mensuales). Usa montos que un dueño de local chileno sienta reales.
-3. NO VENDAS, FILTRA: No ofrezcas servicios específicos, ni garantías exageradas, ni precios. Posiciónate como una agencia que busca aliados estratégicos y que no trabaja con cualquiera.
-4. Usa la etiqueta HTML <b>texto</b> para resaltar los datos extraídos y los montos de dinero.
+ESTRUCTURA EXACTA DE TU RESPUESTA (Debes usar estas etiquetas exactas):
 
-ESTRUCTURA OBLIGATORIA (Solo redacta los textos):
-[Párrafo 1 - La Radiografía Real]: Menciona su negocio y los datos extraídos de Google (estrellas, reseñas, falta de web/redes). Muéstrales con crudeza pero respeto lo que sus clientes ven hoy. Hazles notar el costo invisible: la fuga real de dinero mensual porque la gente confía más en la competencia que sí aparece y se ve profesional en internet.
-[Párrafo 2 - El Cambio de Paradigma]: Explica que el problema no es la calidad de sus productos, sino su "vitrina digital". Menciona que en BigaEstudio transformamos negocios estancados en referentes de su zona, pero aclara que somos selectivos y solo trabajamos con dueños de negocios que realmente tienen la mentalidad para escalar.
-[Párrafo 3 - La Invitación Filtro]: No intentes cerrar una venta. Haz un llamado a la acción de bajo compromiso. Invítalos a responder el mensaje para agendar una breve charla exploratoria de 10 minutos. Diles que el objetivo es simplemente ver si hay "fit" (compatibilidad) para trabajar juntos, sin presiones ni compromisos.
+[REPORTE CLIENTE]
+Redacta 3 párrafos sutiles, profesionales y analíticos para el dueño del negocio.
+Párrafo 1: Observación objetiva. Menciona su negocio y sus datos (reseñas, web). Valida su esfuerzo actual (ej. si tienen web o WhatsApp), pero muestra la deficiencia técnica de forma sutil.
+Párrafo 2: El cuello de botella. Explica con lógica cómo esa fricción les hace perder ventas (ej. clientes nocturnos que no pueden comprar). Calcula una pérdida realista en CLP (ej. $200.000 a $400.000 mensuales en cotizaciones perdidas).
+Párrafo 3: Invitación profesional. Invítalos a una charla exploratoria de 10 minutos para evaluar cómo optimizar ese sistema. Cero presión, actúa como un consultor que viene a solucionar fugas.
+Usa la etiqueta HTML <b>texto</b> para resaltar los datos.
+
+[PLAN INTERNO]
+Háblale directo a Bastián (tu jefe). Dale 3 viñetas tácticas con el "Plano de Ensamblaje" para este cliente.
+Ejemplo de formato: 
+- 🛠️ Herramienta Sugerida: [Qué usar, ej. WooCommerce, Zapier].
+- ⚙️ Solución Técnica: [Qué conectar con qué].
+- 💡 Ángulo de Charla: [De qué hablar si el cliente acepta la reunión].
 """
 
-
-            prompt_auditoria = f"Analiza esta data de la búsqueda '{query_busqueda}':\n{info_lugares}\n\nGenera el reporte directo y persuasivo."
+            prompt_auditoria = f"Analiza esta data de la búsqueda '{query_busqueda}':\n{info_lugares}\n\nGenera el reporte sutil y el plan interno."
             
             chat_completion = client.chat.completions.create(
                 messages=[
                     {"role": "system", "content": instrucciones_sistema},
                     {"role": "user", "content": prompt_auditoria}
                 ],
-                model="llama-3.1-8b-instant",
+               model="llama-3.1-70b-versatile",
+
             )
 
+            respuesta_completa = chat_completion.choices[0].message.content
             
-            texto_reporte = chat_completion.choices[0].message.content
+            # 3. Separamos el reporte del cliente del plan de Bastián
+            if "[PLAN INTERNO]" in respuesta_completa:
+                partes = respuesta_completa.split("[PLAN INTERNO]")
+                texto_pdf = partes[0].replace("[REPORTE CLIENTE]", "").strip()
+                plan_interno = "Tu Plano de Ensamblaje Técnico:\n\n" + partes[1].strip()
+            else:
+                texto_pdf = respuesta_completa
+                plan_interno = "Nota: La IA no separó el plan interno. Revisa el PDF para la data."
+
+            # 4. Inyectamos solo el reporte sutil en el PDF
+            crear_pdf_prospeccion(texto_pdf, "Reporte_BigaEstudio.pdf", "logo.png")
             
-            # 4. Inyectamos la inteligencia de Groq en el PDF con tu logo
-            crear_pdf_prospeccion(texto_reporte, "Reporte_BigaEstudio.pdf", "logo.png")
-            
-            # 5. Enviamos el PDF por WhatsApp
-            texto_chat = f"¡Auditoría completada con éxito! 🚀 Analicé los datos reales y generé tu reporte estratégico de {query_busqueda}. Aquí lo tienes:"
+            # 5. Enviamos el PDF y el Plan Interno por WhatsApp
             url_pdf = "https://bigabot-agente.onrender.com/descargar-pdf" # Ajusta tu URL si es distinta
+            texto_chat = f"¡Análisis completado, Bastián! 🚀\n\n{plan_interno}"
             
             xml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
             <Response>
@@ -171,6 +184,7 @@ ESTRUCTURA OBLIGATORIA (Solo redacta los textos):
                 del memoria_usuarios[remitente] # Limpiamos memoria
                 
             return Response(content=xml_response, media_type="application/xml")
+
             
         # MODO 2: CHAT CONTINUO (Consultas normales)
         else:
