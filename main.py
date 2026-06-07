@@ -150,7 +150,7 @@ Ejemplo de formato:
                     {"role": "system", "content": instrucciones_sistema},
                     {"role": "user", "content": prompt_auditoria}
                 ],
-               model="llama-3.1-70b-versatile",
+               model="llama-3.3-70b-specdec",
 
             )
 
